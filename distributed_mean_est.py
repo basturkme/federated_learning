@@ -9,29 +9,25 @@ import matplotlib.pyplot as plt
 
 def daq_encoder(x: np.ndarray) -> (np.ndarray, np.ndarray):
     """
-    Implements the DAQ Encoder (Algorithm 8).
+    DAQ Encoder (Algorithm 8).
     
-    Args:
-        x: The input vector of real numbers.
+    Args: x: The input vector of real numbers.
         
     Returns:
-        A tuple containing:
         - w: The quantized binary vector.
         - U: The random dither vector used (needed for the decoder).
     """
     d = len(x)
-    # As per Algorithm 8, sample U from a Uniform distribution on [-1, 1]
+# sample U from a Uniform distribution on [-1, 1]
     U = np.random.uniform(-1, 1, size=d)
     
-    # The indicator function 1_{U(i) <= x(i)} can be implemented
-    # directly with a boolean comparison cast to an integer (0 or 1).
-    w = (U <= x).astype(int)
+    w = (U <= x).astype(int) # 0 if U is greater than x, 1 if vice versa
     
     return w, U
 
 def daq_decoder(w: np.ndarray, y: np.ndarray, U: np.ndarray) -> np.ndarray:
     """
-    Implements the DAQ Decoder (Algorithm 9).
+ DAQ Decoder (Algorithm 9).
     
     Args:
         w: The received binary vector from the encoder.
@@ -42,8 +38,8 @@ def daq_decoder(w: np.ndarray, y: np.ndarray, U: np.ndarray) -> np.ndarray:
     Returns:
         The reconstructed vector.
     """
-    # Calculate y_tilde using the same quantization logic
-    y_tilde = (U <= y).astype(int)
+
+    y_tilde = (U <= y).astype(int) # same as in encoder function
     
     # Apply the reconstruction formula
     output = 2 * (w - y_tilde) + y
@@ -62,7 +58,7 @@ def find_scale_index(vec: np.ndarray, M_scales: list) -> np.ndarray:
                 z[i] = j
                 found = True
                 break
-        # If it's larger than all scales, use the largest scale
+        # If  larger than all scales, use the largest scale
         if not found:
             z[i] = len(M_scales) - 1
     return z
@@ -185,16 +181,17 @@ def subsampled_rdaq_decoder(w_sub: np.ndarray, z_sub: np.ndarray, S: np.ndarray,
 
 
 
+#  4.2 Distance Adaptive Quantizer (DAQ)
+
 # In[31]:
 
 
 # --- Testing for DAQ
-# --- Simulation Setup ---
+
 num_trials = 1000
 results = []
 
 # 1. Define the true value of x
-# For this example, let's fix it.
 x_true = np.array([0.6])
 
 # 2. Define the correlation strength via noise level
@@ -212,15 +209,14 @@ print(f"Noise Level (Std Dev) = {noise_level}")
 print(f"Generated side information y = {y_side_info[0]:.4f} (x + noise)")
 
 
-# --- Simulation Loop ---
+
 for _ in range(num_trials):
-    # In each trial, run the full encode-decode pipeline
     w, U = daq_encoder(x_true)
     output = daq_decoder(w, y_side_info, U)
     results.append(output[0])
 
 
-# --- Analysis of Results ---
+# --- Results ---
 results_array = np.array(results)
 average_output = np.mean(results_array)
 
@@ -231,7 +227,7 @@ print(f"Average of all {num_trials} outputs: {average_output:.4f}")
 print(f"Conclusion: The average is very close to the true value of x.")
 
 
-# --- Visualization ---
+# --- Visuals ---
 plt.figure(figsize=(10, 6))
 plt.hist(results_array, bins=50, density=True, alpha=0.7, label='Distribution of Outputs')
 plt.axvline(x=x_true[0], color='red', linestyle='--', linewidth=2, label=f'True x = {x_true[0]:.2f}')
@@ -244,15 +240,17 @@ plt.grid(True, alpha=0.5)
 plt.show()
 
 
+# 4.3 Rotated Distance Adaptive Quantizer (RDAQ)
+#     LENGTH MATTERS
+
 # In[35]:
 
 
 # --- Testing RDAQ
-# --- Simulation Setup ---
 num_trials = 1000
 results = []
 
-# Using parameters from Example 2: Scales Differ
+#  Scales Differ
 x_true = np.array([0.7])
 y_side_info = np.array([3.2])
 M_scales = [1.0, 4.0]
@@ -261,14 +259,13 @@ R = np.identity(1)
 print(f"Running {num_trials} simulations for RDAQ (Example 2)...")
 print(f"True value x = {x_true[0]}, Side info y = {y_side_info[0]}")
 
-# --- Simulation Loop ---
+
 for _ in range(num_trials):
-    # Each iteration gets a new random dither U
     w, z, _, U = rdaq_encoder(x_true, M_scales, R)
     output, _ = rdaq_decoder(w, z, y_side_info, M_scales, R, U)
     results.append(output[0])
 
-# --- Analysis of Results ---
+# --- Results ---
 results_array = np.array(results)
 average_output = np.mean(results_array)
 
@@ -276,7 +273,7 @@ print("\n--- Simulation Results ---")
 print(f"Average of all {num_trials} outputs: {average_output:.4f}")
 print(f"This is very close to the true value of x ({x_true[0]}).")
 
-# --- Visualization Code ---
+# --- Visuals ---
 plt.figure(figsize=(10, 6))
 plt.hist(results_array, bins=50, density=True, alpha=0.7, label='Distribution of Outputs')
 
@@ -294,11 +291,12 @@ plt.grid(True, alpha=0.5)
 plt.show()
 
 
+# 4.4 Subsampled RDAQ: A universal Wyner-Ziv quantizer for unit Euclidean ball
+
 # In[39]:
 
 
 #  SUBSAMPLED RDAQ
-# --- Simulation Setup ---
 num_trials = 1000
 mu_values_to_test = [0.2, 0.5, 0.9]
 mse_results = {}
@@ -334,14 +332,14 @@ for mu in mu_values_to_test:
     mse_results[mu] = mse # Store result for final summary
     print(f"  -> MSE over {num_trials} trials: {mse:.4f}\n")
 
-# --- Final Summary ---
+# --- Summary ---
 print("="*35)
 print("  Final MSE Results Summary")
 print("="*35)
 for mu, mse in mse_results.items():
     print(f"μ = {mu:<3} (using {int(d*mu)}/10 coords) -> MSE = {mse:.4f}")
 
-# --- Visualization of the Trade-off ---
+# --- Visuals of Trade-off ---
 mu_labels = [str(m) for m in mse_results.keys()]
 mse_values = list(mse_results.values())
 
